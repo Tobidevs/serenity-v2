@@ -30,3 +30,34 @@ class StrategistOutput(BaseModel):
     question = Annotated[str, Field(description="Clarifying question for the user if action is 'clarify'")]
     search_query = Annotated[Sequence[str], Field(description="List of search queries for the tool if action is 'search'")]
     
+    
+
+class WebSearchInput(BaseModel):
+    queries: list[str] = Field(
+        description="1-2 standalone, fully self-contained search queries with "
+        "denominational anchoring and mode framing applied."
+    )
+    resolved_query: str = Field(
+        description="The user's original query with all pronouns and references "
+        "fully resolved. Passed to the Scholar for response framing."
+    )
+    denomination: Annotated[str, Literal["catholic", "orthodox", "reformed", "anglican", "lutheran"]] = Field(
+        description="The active denomination for this session, derived from the latest user message."
+    )
+    mode: Annotated[str, Literal["academic", "devotional"]] = Field(
+        description="The research mode for this session, derived from the latest user message."
+    )
+
+
+class BibleRAGInput(BaseModel):
+    topic: str = Field(
+        description="A concise description of the theological topic or question "
+        "to guide verse retrieval. Derived from the resolved query."
+    )
+
+
+class ClarifyInput(BaseModel):
+    question: str = Field(
+        description="A single, specific question that resolves the ambiguity "
+        "blocking search. Must be one question only — not a list."
+    )

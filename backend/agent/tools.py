@@ -5,50 +5,30 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 
 from .utils import (
+    build_domains,
     tavily_search_multiple,
     deduplicate_search_results,
     process_search_results,
     format_search_output,
 )
+from .state import WebSearchInput, BibleRAGInput, ClarifyInput
 
 load_dotenv()
 
 
 
-class WebSearchInput(BaseModel):
-    queries: list[str] = Field(
-        description="1-2 standalone, fully self-contained search queries with "
-        "denominational anchoring and mode framing applied."
-    )
-    resolved_query: str = Field(
-        description="The user's original query with all pronouns and references "
-        "fully resolved. Passed to the Scholar for response framing."
-    )
-
-
-class BibleRAGInput(BaseModel):
-    topic: str = Field(
-        description="A concise description of the theological topic or question "
-        "to guide verse retrieval. Derived from the resolved query."
-    )
-
-
-class ClarifyInput(BaseModel):
-    question: str = Field(
-        description="A single, specific question that resolves the ambiguity "
-        "blocking search. Must be one question only — not a list."
-    )
-
-
 @tool(args_schema=WebSearchInput)
-async def web_search(queries: list[str], resolved_query: str) -> str:
+async def web_search(queries: list[str], resolved_query: str, denomination: str, mode: str) -> str:
     """Search curated theological sources for commentary, patristic texts,
     and doctrinal resources filtered by the active denomination."""
+    
+    domains = build_domains(denomination, mode)
 
     search_results = await tavily_search_multiple(
         queries,
         search_depth=os.getenv("TAVILY_SEARCH_DEPTH"),
         chunks_per_source=os.getenv("TAVILY_CHUNKS_PER_SOURCE"),
+        include_domains=domains,
         include_raw_content=False,
     )
 

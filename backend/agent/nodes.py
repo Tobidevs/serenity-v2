@@ -43,7 +43,7 @@ def route_strategist(state: AgentState) -> str:
         return "tools"
 
 
-def clarify_node(state: AgentState) -> None:
+def clarify_node(state: AgentState) -> AgentState:
     last_message = state["messages"][-1]
     clarification_call = next(
         tc for tc in last_message.tool_calls 

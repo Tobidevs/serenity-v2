@@ -4,6 +4,8 @@ from tavily import AsyncTavilyClient
 from dotenv import load_dotenv
 from datetime import datetime
 
+from backend.agent.config import REPOSITORIES
+
 from .prompts import SUMMARIZE_WEBPAGE_PROMPT
 from .state import Summary
 
@@ -213,3 +215,18 @@ def format_search_output(processed_results: dict) -> str:
         )
 
     return "\n\n".join(results)
+
+
+def build_domains(denomination: str, mode: str) -> List[str]:
+    """Build a list of domains to filter search results by based on the active denomination."""
+    
+    # Construct the include_domains list
+    include_domains = REPOSITORIES["general"].copy()
+    
+    if denomination in REPOSITORIES["denominations"]:
+        include_domains.extend(REPOSITORIES["denominations"][denomination])
+    
+    if mode in REPOSITORIES["modes"]:
+        include_domains.extend(REPOSITORIES["modes"][mode])
+    
+    return include_domains
