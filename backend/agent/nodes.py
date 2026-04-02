@@ -1,43 +1,73 @@
 from langchain.chat_models import init_chat_model
 import asyncio
-from .tools import think_tool, tavily_search
-from .state import AgentState
-from langchain_core.messages import SystemMessage, ToolMessage
 
-tools = [tavily_search, think_tool]
+from .prompts import SYSTEM_PROMPT
+from .tools import web_search, bible_rag, request_clarification
+from .state import AgentState
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, trim_messages
+from langgraph.types import interrupt
+
+tools = [web_search, bible_rag, request_clarification]
 tools_dict = {tool.name: tool for tool in tools}
 model = init_chat_model(model="openai:gpt-5.1")
-researcher_model = model.bind_tools(tools)
+strategist_model = model.bind_tools(tools)
 
 
-def input_call(state: AgentState) -> AgentState:
+def strategist_node(state: AgentState) -> AgentState:
     """Analyze current state and decide on next action."""
     try:
-        response = researcher_model.invoke(
-            [
-                SystemMessage(content=RESEARCH_AGENT_SYSTEM_PROMPT),
-            ]
-            + state["messages"],
-        )
+
+        # Optionally trim history to last N tokens before injecting
+        # trimmed_history = trim_messages(
+        #     state["messages"], max_tokens=4000, token_counter=strategist_model
+        # )
+
+        response = strategist_model.invoke(state["messages"])
+
     except Exception as exc:
         response = f"Error during LLM call: {exc}"
 
     return {"messages": [response]}
 
+def route_strategist(state: AgentState) -> str:
+    last_message = state["messages"][-1]
+    
+    if not last_message.tool_calls:
+        return "end"
+    
+    tool_names = {tc["name"] for tc in last_message.tool_calls}
+    
+    if "request_clarification" in tool_names:
+        return "clarify"
+    else:
+        return "tools"
+
+
+def clarify_node(state: AgentState) -> None:
+    last_message = state["messages"][-1]
+    clarification_call = next(
+        tc for tc in last_message.tool_calls 
+        if tc["name"] == "request_clarification"
+    )
+    question = clarification_call["args"]["question"]
+    
+    user_clarification = interrupt(question)
+    return {"messages": [HumanMessage(content=user_clarification)]}
+    
 
 async def tool_node(state: AgentState) -> AgentState:
     """Execute all tool calls from previous LLM response.
     Returns updated state with tool execution results.
     """
     try:
-        researcher_messages = state.get("researcher_messages", [])
-        if not researcher_messages:
-            return {"researcher_messages": ["No messages from researcher to process."]}
+        messages = state.get("messages", [])
+        if not messages:
+            return {"messages": ["No messages from researcher to process."]}
 
-        last_message = researcher_messages[-1]
+        last_message = messages[-1]
         tool_calls = getattr(last_message, "tool_calls", None) or []
         if not tool_calls:
-            return {"researcher_messages": []}
+            return {"messages": []}
 
         tasks = []
         valid_tool_calls = []
@@ -68,12 +98,12 @@ async def tool_node(state: AgentState) -> AgentState:
         if not tool_outputs:
             raise ValueError("No valid tool outputs were generated.")
 
-        return {"researcher_messages": tool_outputs}
+        return {"messages": tool_outputs}
     except Exception as exc:
         raise ValueError(f"Error during tool execution: {exc}") from exc
 
 
-def output_call(state: AgentState) -> AgentState:
+def scholar_node(state: AgentState) -> AgentState:
     """Generate final output based on current state."""
     # Placeholder for output generation logic
     return state
