@@ -4,10 +4,10 @@ from tavily import AsyncTavilyClient
 from dotenv import load_dotenv
 from datetime import datetime
 
-from backend.agent.config import REPOSITORIES
-
+from .config import REPOSITORIES, AVAILABLE_TRANSLATIONS, VALID_GENRES
 from .prompts import SUMMARIZE_WEBPAGE_PROMPT
 from .state import Summary
+
 
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
@@ -34,6 +34,7 @@ async def tavily_search_multiple(
     search_queries: List[str],
     max_results: int = 3,
     search_depth: str = "advanced",
+    include_domains: List[str] = None,
     chunks_per_source: int = 1,
     topic: Literal["general", "news", "finance"] = "general",
     include_raw_content: bool = False,
@@ -60,6 +61,7 @@ async def tavily_search_multiple(
             chunks_per_source=chunks_per_source,
             include_raw_content=include_raw_content,
             topic=topic,
+            include_domains=include_domains,
         )
         for query in search_queries
     ]
@@ -230,3 +232,57 @@ def build_domains(denomination: str, mode: str) -> List[str]:
         include_domains.extend(REPOSITORIES["modes"][mode])
     
     return include_domains
+
+def _build_filter(
+    translation: str | None,
+    testament: str | None,
+    genre: str | None,
+) -> dict:
+    """
+    Construct a Pinecone metadata filter dict.
+    Only adds clauses for values that are actually present in the index.
+    """
+    conditions = []
+
+    # Translation — default to all available if none specified
+    if translation and translation in AVAILABLE_TRANSLATIONS:
+        conditions.append({"translation": {"$eq": translation}})
+    elif AVAILABLE_TRANSLATIONS:
+        # Constrain to what's actually ingested (avoids empty results)
+        conditions.append({"translation": {"$in": AVAILABLE_TRANSLATIONS}})
+
+    if testament in ("Old", "New"):
+        conditions.append({"testament": {"$eq": testament}})
+
+    if genre and genre in VALID_GENRES:
+        conditions.append({"genre": {"$eq": genre}})
+
+    if not conditions:
+        return {}
+    if len(conditions) == 1:
+        return conditions[0]
+    return {"$and": conditions}
+
+def _format_bible_output(results: list[dict]) -> str:
+    """Serialize results into XML-like source blocks matching web_search output format."""
+    if not results:
+        return "<bible_results>\n<message>No relevant passages found.</message>\n</bible_results>"
+
+    blocks = []
+    for i, r in enumerate(results):
+        block = (
+            f'<source index="{i + 1}">\n'
+            f'  <reference>{r["reference"]}</reference>\n'  # "John 3:16-18"
+            f'  <book>{r["book"]}</book>\n'
+            f'  <chapter>{r["chapter"]}</chapter>\n'
+            f'  <verses>{r["start_verse"]}-{r["end_verse"]}</verses>\n'
+            f'  <testament>{r["testament"]}</testament>\n'
+            f'  <translation>{r["translation"]}</translation>\n'
+            f'  <genre>{r["genre"]}</genre>\n'
+            f'  <text>{r["text"]}</text>\n'
+            f'  <score>{r["score"]:.3f}</score>\n'
+            f"</source>"
+        )
+        blocks.append(block)
+
+    return "<bible_results>\n" + "\n".join(blocks) + "\n</bible_results>"

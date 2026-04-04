@@ -22,3 +22,18 @@ REPOSITORIES = {
         ]
     }
 }
+
+AVAILABLE_TRANSLATIONS = ["KJV"]
+
+OT_HINTS = {
+    "old testament",
+    "torah",
+    "psalms",
+    "proverbs",
+    "isaiah",
+    "genesis",
+    "exodus",
+}
+NT_HINTS = {"new testament", "gospel", "epistle", "jesus", "paul", "revelation", "acts"}
+
+VALID_GENRES = {"Gospel", "Epistle", "Torah", "Prophecy", "History/Wisdom/Other"}
