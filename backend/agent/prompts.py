@@ -249,6 +249,10 @@ Match this schema exactly:
   "mode": "<echo back: academic or devotional>"
 }}
 
+Formatting requirement for the `answer` field: use real line breaks and normal markdown
+characters. Do not emit literal escaped control sequences like `\\n`, `\\t`, or `\\r` inside
+the answer text.
+
 ## VOICE
 You are a scholar. The following are banned without exception:
 - "Based on the search results..."

@@ -25,6 +25,22 @@ class ChatResponse(BaseModel):
     denomination_notes: str
 
 
+def normalize_markdown_answer(answer: str) -> str:
+    """Normalize common escaped sequences so frontend markdown renders as intended."""
+    if not answer:
+        return ""
+
+    normalized = answer.strip()
+
+    # If model emitted literal escape sequences, convert them to actual characters.
+    if "\\n" in normalized:
+        normalized = normalized.replace("\\r\\n", "\n").replace("\\n", "\n")
+    if "\\t" in normalized:
+        normalized = normalized.replace("\\t", "\t")
+
+    return normalized
+
+
 def build_human_message(user_input: str, denomination: str, mode: str) -> HumanMessage:
     return HumanMessage(
         content=f"""[Session: Denomination={denomination} | Mode={mode}]
@@ -56,7 +72,9 @@ async def chat(request: ChatRequest):
 
             return ChatResponse(
                 thread_id=thread_id,
-                answer=serenity_agent_result.get("answer", ""),
+                answer=normalize_markdown_answer(
+                    serenity_agent_result.get("answer", "")
+                ),
                 scripture_references=serenity_agent_result.get(
                     "scripture_references", []
                 ),
@@ -75,12 +93,15 @@ async def chat(request: ChatRequest):
                     ),
                     "denomination": request.denomination,
                     "mode": request.mode,
-                }
+                },
+                config=config,
             )
 
             return ChatResponse(
                 thread_id=request.thread_id,
-                answer=serenity_agent_result.get("answer", ""),
+                answer=normalize_markdown_answer(
+                    serenity_agent_result.get("answer", "")
+                ),
                 scripture_references=serenity_agent_result.get(
                     "scripture_references", []
                 ),

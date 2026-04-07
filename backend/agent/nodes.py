@@ -74,8 +74,12 @@ def scholar_node(state: AgentState) -> AgentState:
             source_hierarchy=get_source_hierarchy(denomination),
         )
 
+        scholar_messages = state["messages"]
+        if scholar_messages and isinstance(scholar_messages[0], SystemMessage):
+            scholar_messages = scholar_messages[1:]
+
         response = scholar_model.invoke(
-            [SystemMessage(content=system_prompt)] + state["messages"]
+            [SystemMessage(content=system_prompt)] + scholar_messages
         )
 
         return {
